@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Transcriptor de Audio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .container {
+            max-width: 700px;
+            margin-top: 60px;
+            background-color: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .file-label {
+            font-weight: 600;
+        }
+
+        .textarea-container {
+            margin-top: 20px;
+        }
+
+        textarea {
+            resize: none;
+            width: 100%;
+            height: auto;
+        }
+
+        .btn {
+            margin-top: 10px;
+        }
+
+        .alert {
+            margin-top: 20px;
+        }
+
+        .btn-clear {
+            margin-top: 15px;
+            background-color: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-center mb-4">🎧 Transcriptor de Audio</h2>
+        
+        <!-- Formulario para subir archivos de audio -->
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="audio" class="form-label file-label">Sube un archivo (.mp3, .m4a o .wav):</label>
+                <input type="file" class="form-control" id="audio" name="audio" accept=".mp3, .wav, .m4a" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Convertir a Texto</button>
+        </form>
+
+        <!-- Mostrar la transcripción del audio, si existe -->
+        {% if texto %}
+            <div class="alert alert-success mt-4">
+                <h5>Texto transcrito:</h5>
+                <textarea class="form-control" rows="10" readonly>{{ texto }}</textarea>
+            </div>
+            <!-- Enlace para descargar la transcripción -->
+            {% if nombre_transcripcion %}
+                <a href="{{ url_for('descargar', filename=nombre_transcripcion) }}" class="btn btn-success w-100 mt-3">📥 Descargar Transcripción</a>
+            {% endif %}
+        {% endif %}
+
+        <!-- Botón para limpiar -->
+        {% if texto %}
+            <form method="POST" action="{{ url_for('index') }}">
+                <button type="submit" class="btn btn-clear w-100">Limpiar</button>
+            </form>
+        {% endif %}
+
+        <!-- Mostrar mensajes de error si ocurren -->
+        {% if texto is not none and texto != "No se pudo entender el audio." and texto != "Error al conectarse al servicio de reconocimiento." %}
+            <div class="alert alert-warning mt-4">
+                {{ texto }}
+            </div>
+        {% endif %}
+        
+    </div>
+
+    <!-- JS de Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
+</body>
+</html>

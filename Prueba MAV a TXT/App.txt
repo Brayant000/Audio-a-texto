@@ -1,0 +1,96 @@
+from flask import Flask, render_template, request, send_file
+import speech_recognition as sr
+from pydub import AudioSegment
+import os
+import uuid
+
+app = Flask(__name__)
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    texto_completo = None
+    nombre_transcripcion = None  # Variable para el nombre del archivo transcrito
+    error = None  # Variable para los errores que puedan ocurrir
+
+    if request.method == 'POST':
+        if 'audio' not in request.files:
+            error = "No se subió ningún archivo."
+            return render_template('index.html', error=error)
+
+        archivo = request.files['audio']
+        if archivo.filename == '':
+            error = "Nombre de archivo inválido."
+            return render_template('index.html', error=error)
+
+        ext = archivo.filename.rsplit('.', 1)[1].lower()
+        nombre_original = f"{uuid.uuid4()}.{ext}"
+        ruta_audio = os.path.join(UPLOAD_FOLDER, nombre_original)
+        archivo.save(ruta_audio)
+
+        # Convertir m4a o mp3 a wav 
+        if ext in ['mp3', 'm4a']:
+            sonido = AudioSegment.from_file(ruta_audio)
+            ruta_wav = ruta_audio.replace(f'.{ext}', '.wav')
+            sonido.export(ruta_wav, format="wav")
+        else:
+            ruta_wav = ruta_audio
+
+        # Transcripción
+        recognizer = sr.Recognizer()
+        texto_completo = ""
+
+        # Dividir el archivo de audio en fragmentos  o ajustar según duración
+        audio = AudioSegment.from_wav(ruta_wav)
+        duracion = len(audio)  # Duración del audio en milisegundos
+
+        fragmento_duracion = 30 * 1000  
+
+        if duracion > 360 * 1000:  
+            fragmento_duracion = 60 * 1000  
+
+        for inicio in range(0, duracion, fragmento_duracion):
+            fin = min(inicio + fragmento_duracion, duracion)
+            fragmento = audio[inicio:fin]
+            # Guardar fragmento temporal
+            fragmento_path = os.path.join(UPLOAD_FOLDER, f"fragmento_{inicio}.wav")
+            fragmento.export(fragmento_path, format="wav")
+
+            # Transcribir fragmento
+            with sr.AudioFile(fragmento_path) as source:
+                try:
+                    audio_data = recognizer.record(source)  # Usamos record en lugar de listen
+                    texto_completo += recognizer.recognize_google(audio_data, language="es-ES") + " "
+                except sr.UnknownValueError:
+                    texto_completo += "[No se entendió el audio] "
+                except sr.RequestError:
+                    texto_completo += "[Error al conectarse al servicio de reconocimiento] "
+
+            # Limpiar fragmento temporal
+            if os.path.exists(fragmento_path):
+                os.remove(fragmento_path)
+
+        # Crear un nombre único para el archivo de transcripción
+        nombre_transcripcion = f"{uuid.uuid4()}.txt"
+        transcripcion_path = os.path.join(UPLOAD_FOLDER, nombre_transcripcion)
+
+        # Guardar transcripción en archivo
+        with open(transcripcion_path, "w", encoding="utf-8") as f:
+            f.write(texto_completo)
+
+        # Limpieza de archivos temporales
+        if os.path.exists(ruta_audio):
+            os.remove(ruta_audio)
+        if os.path.exists(ruta_wav):
+            os.remove(ruta_wav)
+
+    return render_template('index.html', texto=texto_completo, nombre_transcripcion=nombre_transcripcion, error=error)
+
+
+@app.route('/descargar/<filename>', methods=['GET'])
+def descargar(filename):
+    return send_file(os.path.join(UPLOAD_FOLDER, filename), as_attachment=True)
+
+if __name__ == '__main__':
+    app.run(debug=True)
